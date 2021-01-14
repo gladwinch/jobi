@@ -1,9 +1,11 @@
 const scraper = require('./scraper')
 const cheerio = require('cheerio')
+const { v4: uuidv4 } = require('uuid')
+// const nlp = require('compromise')
 
 const { indeedLink, getHtml, nameParser } = require('./helper')
 
-const getIndeed = ({ title, location, page }) => {
+const getIndeed = ({ title, location }) => {
     return new Promise(async (resolve, reject) => {
        title = nameParser(title)
        location = nameParser(location)
@@ -17,15 +19,20 @@ const getIndeed = ({ title, location, page }) => {
 
          resolve({
            link: 'no job error type right format',
-           page: 'no job found',
-           jobs: []
          })
        }
 
-       let ctLink = `${link}/jobs?q=${title}&l=${location}&start=${page - 1}0`
+       let page = Math.floor(Math.random() * 2) + 2
+       console.log('current page: ',page)
+
+       location = location || 'remote'
+
+       let ctLink = `${link}/jobs?q=${title}&l=${location}&sort=date&start=${page - 1}0`
 
        let html = await getHtml(ctLink)
        const ScrapedData = await scraper(html)
+
+       console.log("Check scraped data: ",ScrapedData)
 
 
        let mapFun = ScrapedData.job_list.map((element, index) => {
@@ -39,16 +46,36 @@ const getIndeed = ({ title, location, page }) => {
            const imageCont = $('.icl-Card-body')
 
            let job_type = heading.find('.icl-IconFunctional--md.icl-IconFunctional--jobs').next().text().replace(/\s\s+/g, '')
-           let reviews = heading.find('.icl-Ratings-count').text().split(" ")[0] || Math.floor(Math.random() * 150)
-           let applyLink = heading.find('.icl-u-lg-hide .icl-Button--primary').attr('href') || link + element.link
+          //  let reviews = heading.find('.icl-Ratings-count').text().split(" ")[0] || Math.floor(Math.random() * 150)
+           let apply = heading.find('.icl-u-lg-hide .icl-Button--primary').attr('href') || link + element.link
            let img = imageCont.find('.jobsearch-CompanyAvatar-image').attr('src') || ''
+           let more_description = $('#jobDescriptionText').text().trim().replace(/\n/g, ' <br/> ')
+
+           let recruiter_email = more_description.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi)
+           let recruiter_number = more_description.match(/^[+]*[(]{0,1}[0-9]{1,4}[)]{0,1}[-\s\./0-9]*$/gi)
+          
+          // let recruiter_name
+          // if(nlp(more_description).people().json().length === 0) {
+          //   recruiter_name = ''
+          // } else {
+          //   recruiter_name = nlp(more_description).people().json()[0].text
+          // }
+
+          let recruiter = { 
+            email: recruiter_email ? recruiter_email[0] : '' ,
+            phone: recruiter_number ? recruiter_number[0] : '',
+            // name: recruiter_name
+          }
 
            resolve({
              job_type,
-             reviews,
-             applyLink,
+            //  reviews,
+             apply,
              img,
-             id: index
+             id: uuidv4(),
+             more_description,
+             recruiter,
+             notes: ''
            })
          })
        })
@@ -67,12 +94,13 @@ const getIndeed = ({ title, location, page }) => {
          }
        })
 
-       resolve({
-         time: (Date.now() - start) / 1000 + " " + 'sec',
-         link: ctLink,
-         page: ScrapedData.pageCount,
-         jobs: jobList
+       console.log({
+        time: (Date.now() - start) / 1000 + " " + 'sec',
+        link: ctLink,
+        page: ScrapedData.pageCount,
        })
+
+       resolve(jobList)
 
     })
 }

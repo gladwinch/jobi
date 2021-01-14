@@ -1,152 +1,13 @@
 const express = require('express')
 const router = express.Router()
+const skillScore = require('../../utils/skillScore')
 const validator = require("email-validator")
 
 const auth = require('../../middleware/auth')
 const { check, validationResult } = require('express-validator')
-const mongoose = require('mongoose')
-const Profile = require('../../models/Profile')
-const Jobs = require('../../models/Jobs')
 const User = require('../../models/User')
 const getIndeed = require('../../source/indeed')
 const indeedNotify = require('../../source/indeed/notifier')
-
-// @route    GET api/profile/data
-// @desc     Get current users profile data
-// @access   Private
-router.get('/get-details', auth, async (req, res) => {
-
-
-  try {
-    
-    const user = await User.findById(req.user.id)
-    const jobs = await Jobs.findOne({ userID: req.user.id})
-    console.log("JOBS: ", jobs)
-
-    if (!user) {
-      return res.status(400).json({
-        msg: 'No user found!'
-      })
-    }
-
-    let data = {
-      user,
-      jobData: jobs || []
-    }
-
-    console.log("User Data: ", data)
-    
-    res.json(data)
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Server Error');
-  }
-})
-
-
-// @route    GET api/profile/data
-// @desc     Get current users profile data
-// @access   Private
-router.post('/add-jobs', auth, async (req, res) => {
-  console.log("Client: ", req.body)
-  
-
-  try {
-    const job = await Jobs.findOne({ userID: req.user.id})
-    
-    if(!job) {
-      let jobData = new Jobs({
-        userID: req.user.id,
-        ...req.body
-      })
-
-      await jobData.save()
-
-      res.json(jobData)
-    } else {
-
-      job.jobsInfo = req.body.jobsInfo
-      job.settings = req.body.settings
-
-      await job.save()
-      res.json(job)
-    }
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Server Error');
-  }
-})
-
-// @route    GET api/profile/update-alertinfo
-// @desc     Update user data
-// @access   Private
-router.post('/update-user', auth,
-  [
-    check('name', 'Name is required').not().isEmpty()
-  ],
-  async (req, res) => {
-    const errors = validationResult(req)
-
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() })
-    }
-    
-    const { name, location, shortBio } = req.body
-
-    try {
-      let user = await User.findById(req.user.id)
-
-      if (!user) {
-        return res.status(400).json({
-          message: "No User found"
-        })
-      }
-
-      user.name = name
-      user.location = location
-      user.shortBio = shortBio
-
-      await user.save()
-
-      res.status(200).json(user)
-    } catch (error) {
-      console.log(error)
-
-      res.status(400).json({
-        message: "Server Error"
-      })
-    }
-})
-
-
-// @route    GET api/profile/post-data
-// @desc     Add Profile data data
-// @access   Private
-router.post('/add-details', auth, async (req, res) => {
-  
-  if (Object.keys(req.body).length != 7) {
-      return res.status(400).json({
-        errors: "Something went wrong"
-      })
-  }
-
-  try {
-
-      let profile = await Profile.findOneAndUpdate(
-        { user: req.user.id },
-        { $set: req.body },
-        { new: true, upsert: true }
-      )
-      
-      res.json(profile)
-
-    } catch (err) {
-      console.error(err.message);
-      res.status(500).send('Server Error')
-    }
-})
 
 
 
@@ -157,10 +18,10 @@ router.post('/add-details', auth, async (req, res) => {
 // @desc     Get search result
 // @access   Public
 
-router.post('/search', async (req, res) => {
-  console.log("Route got hit:", req.body)
+router.get('/search', async (req, res) => {
+  console.log("Route got hit:", req.query)
 
-  if (Object.keys(req.body).length != 3) {
+  if (Object.keys(req.query).length != 3) {
     return res.status(400).json({
       errors: "Params are not vaild"
     })
@@ -168,11 +29,20 @@ router.post('/search', async (req, res) => {
 
   try {
 
-    let value = await Promise.all([getIndeed(req.body)])
-    console.log("---------------------------===============------------------------")
-    
+    let value = await Promise.all([getIndeed(req.query)])
+    console.log("-----------------------===============------------------------")
 
-    res.status(200).json(value[0])
+    let requestedData = value[0].map(result => {
+      let { title, description, more_description } = result
+
+      let stringData = title+' '+description+' '+more_description
+      return {
+        ...result,
+        skill: skillScore(stringData.toLowerCase())
+      }
+    })
+    
+    res.status(200).json(requestedData)
     console.log("job search complete")
   } catch(err) {
     console.log("ERROR: ", err)
@@ -185,20 +55,38 @@ router.post('/search', async (req, res) => {
 })
 
 // single job real time
-router.post('/single-job', (req, res) => {
-  console.log("Data: ", req.body)
+router.get('/single-job', (req, res) => {
+  console.log("single Data: ", req.query)
+  
 
-  indeedNotify(req.body, true)
+  indeedNotify(req.query, true)
     .then(result => {
+      let { title, description, more_description } = result
+      let stringData = title+' '+description+' '+more_description
+
+      result = {
+        ...result,
+        skill: skillScore(stringData.toLowerCase())
+      }
+
       console.log("Result: __",result)
       res.json(result)
     })
     .catch(err => {
       console.log(err)
-      res.status(400).json({
+      res.status(500).json({
         msg: 'Server Error'
       })
     }) 
+})
+
+router.get('/browser', (req, res) => {
+  console.log("route is working...", req.query.id)
+  res.json({
+    id: req.query.id,
+    name: req.query.name,
+    success: true
+  })
 })
 
 

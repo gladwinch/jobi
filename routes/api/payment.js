@@ -1,144 +1,64 @@
 const express = require('express')
-const router = express.Router()
+const Candidate = require('../../models/Candidate')
+
 const auth = require('../../middleware/auth')
 const subscribeUser = require('../../services/subscribe')
+const router = express.Router()
 
-router.post('/', auth, async (req, res) => {
-    //payment logic
-    console.log("data: ", req.body)
-    console.log("payment done. starting operation...")
-    // when payment is success call subscribeUser
-    subscribeUser(req, res) 
+let stripeSecretKey = 'sk_test_51DpVxgCXYXHHnswHauHxIwg6wx1Ybs5tveAo1pffJs97vtQuqdyBIZQfacA3Bn1AXiBodW5l5SuQRgO8rCRSJral00cV1Xnj0y'
+const stripe = require('stripe')(stripeSecretKey)
+
+const package = {
+    monthly: 'price_1Hm7jTCXYXHHnswHPPsG9rfj',
+    weekly: 'price_1Hm7lfCXYXHHnswHg6iCnYVJ'
+}
+
+// @route    POST api/jobs/add-notes
+// @desc     Add to notes to selected notes
+// @access   Private
+router.post('/create-customer', auth, async (req, res) => {
+    console.log("checking body: ",req.body)
+
+    let candidate = await Candidate.findById(req.candidate.id)
+    let package = req.body.package
+
+    if(package !== 'monthly' && package !== 'weekly') {
+        return res.status(404).json({
+            success: false,
+            message: "No package selected"
+        })
+    }
+
+    if(!candidate) {
+        return res.status(404).json({
+            success: false,
+            message: "User not found!"
+        })
+    }
+
+    if(candidate.stripeCustomerId) {
+        console.log("customer already exist")
+        candidate.package = package
+        await candidate.save()
+        return res.send(candidate)
+    }
+
+    const customer = await stripe.customers.create({
+      email: candidate.email,
+      name: candidate.name
+    })
+
+    candidate.stripeCustomerId = customer.id
+    candidate.package = package
+    await candidate.save()
+  
+    res.send(candidate)
 })
 
-// --------------------------------------------------------------------
-
-// Stripe Payment Integration
-
-// env variables:
-const stripeSecretKey = 'sk_test_VJriXelBwM6E6hBDca9cNHGV';
-const monthlyPriceID = 'price_1Gx6byEluQXhZEvLZyeUE46q';
-const weeklyPriceID =  'price_1Gx6b1EluQXhZEvLqm1TJeBw';
-const success_url =  'http://localhost:8080/api/payment/stripe-success?session_id={CHECKOUT_SESSION_ID}';
-const cancel_url =  'http://localhost:8080/api/payment/stripe-cancel';
-
-// requirements:
-const stripe = require('stripe')(stripeSecretKey, {apiVersion: ''});
-const User = require('../../models/User');
-
-// helper functions:
-    // get user:
-const authUser = async () => {
-    let authenticatedUserEmail = 'ahmedmarzouk266@gmail.com' ;
-    return await User.findOne({email: authenticatedUserEmail});
-};
-
-// Stripe routes:
-router.post('/get-stripe-session', async (req, res) => {
-
-    // choose monthly|weekly subscription:
-
-    let sub_frq = req.body.subscription_frequency ;
-    let priceID = monthlyPriceID;
-    if(sub_frq === 'weekly'){
-        priceID = weeklyPriceID ;
-    }
-
-    const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
-        line_items: [{
-            price: priceID,
-            quantity: 1,
-        }],
-        mode: 'subscription',
-        success_url: success_url,
-        cancel_url: cancel_url,
-    });
-
-    res.send(session);
-});
-router.get('/stripe-success', async (req, res) => {
-    const session = await stripe.checkout.sessions.retrieve(req.query.session_id);
-    const subscription = await stripe.subscriptions.retrieve(session.subscription);
-
-    let user = await authUser() ;
-
-    user.stripeCustomerID = subscription.customer;
-    user.stripeSubscriptionID = subscription.id;
-    user.save();
-
-    res.send('Payment was made Successfully - return the success view ! :) ');
-});
-router.get('/stripe-cancel', (req, res) => {
-    res.send('payment was canceled! - return the cancel view :( ');
-});
-
-// TODO: setup webhocks to make sure the payment was accepted.
-// --------------------------------------------------------------------
-
-// PayPal Payment Integration
-
-const axios = require('axios');
-
-// env vars:
-const paypal_client_id = 'Ab77O0MIVfOsvH1EQnthFL7u1XUnZUPAqxSJPS04SOgvcJQ2DuQO2LdFQO6WOeo14pxUy5pMq4QnOmBF';
-const paypalSecretKey = 'EI5zSw_yVH0_LbAfEIb6Qnwd8GgtTIVuJzDiNoQiFlqMdgXZWyVZlOFx3dQknF65vxosywa6KT4NsYhM';
-const product_id_weekly  = 'PROD-3BH33991P5545344T';
-const product_id_monthly = 'PROD-2K69152897139264A';
-const plan_id_weekly     = 'P-6UC79070M4408410GL3ZIK4A';
-const plan_id_monthly    = 'P-21E869185F8264426L3ZILBY';
-const paypal_base_url    = 'https://api.sandbox.paypal.com/v1/';
+router.post('/unsubscribe', auth, async(req,res) => {
+    console.log('unsubscribe route is working...')
+    res.status(200).json("User is unsubscibe")
+})
 
 
-
-// routes:
-
-router.post('/set-paypal-sub', async (req, res) => {
-
-    let sub_frq = req.body.subscription_frequency ;
-    let planID = plan_id_monthly;
-    if(sub_frq === 'weekly'){
-        planID = plan_id_weekly ;
-    }
-
-    let data = JSON.stringify({
-        "plan_id": planID
-    });
-
-    let config = {
-        method: 'post',
-        url: paypal_base_url + 'billing/subscriptions ',
-        headers: {
-            'Authorization': 'Basic ' + Buffer.from(paypal_client_id + ':' + paypalSecretKey).toString('base64'),
-            'Content-Type': 'application/json'
-        },
-        data : data
-    };
-
-    axios(config)
-        .then(function (response) {
-            let approvalURL = response.data.links[0].href ; //  can be checked: links[0].rel === 'approve';
-            res.send({approvalURL});
-        })
-        .catch(function (error) {
-            console.log(error);
-        });
-});
-
-router.get('/paypal-success', async (req, res) => {
-    console.log('Payment success...');
-    console.log(req.body);
-});
-
-router.get('/paypal-cancel', async (req, res) => {
-    console.log('Payment canceled...');
-    console.log(req.body);
-});
-
-// TODO: setup webhocks to make sure the payment was accepted.
-
-
-
-
-
-module.exports = router;
+module.exports = router

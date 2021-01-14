@@ -1,42 +1,22 @@
-const mongoose = require('mongoose')
-const Jobs = require("../models/Jobs")
-
-
-const subscribeUser = async (req, res) => {
-    console.log("PACKAGE: ", req.body)
+const subscribeUser = async (res, candidate, package) => {
 
     let interval
-    if (req.body.package === 'monthly') {
-        interval = 31 
-    } else {
-      interval = 7
-    }
-
-
-    // res.send("subscibed")
-    // return
+    package === 'monthly' ? interval = 31 : interval = 7
 
     let days = new Date()
     let timestamp = days.setDate(days.getDate() + interval)
 
     try {
-        let profile = await Jobs.findOne({
-            userID: req.user.id
-        })
+        console.log("candidate: ", candidate)
 
-        if (!profile) {
-            return res.status(400).json({
-                message: "No User found"
-            })
-        }
-
-        profile.settings.subscription.expire = timestamp
-        profile.settings.subscription.status = true
-        await profile.save()
+        candidate.subscription.user = true
+        candidate.subscription.duration = timestamp
+        await candidate.save()
 
         res.status(200).json({
-            expire: timestamp,
-            status: true
+            data: candidate,
+            success: true,
+            message: "Request went successful!"
         })
 
     } catch (err) {

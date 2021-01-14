@@ -8,7 +8,7 @@ const { check, validationResult } = require('express-validator')
 const keys = require('../../config/keys');
 
 const User = require('../../models/User')
-const Jobs = require('../../models/Jobs')
+// const Jobs = require('../../models/Jobs')
 const Profile = require('../../models/Profile')
 
 // @route    POST api/users
@@ -43,7 +43,6 @@ router.post(
           .json({ errors: [{ msg: 'User already exists' }] })
       }
       
-
       user = new User({
         name,
         email,
@@ -60,19 +59,19 @@ router.post(
         user: user.id
       })
 
-      let job = new Jobs({
-        userID: user.id,
-        settings: {
-          emails: [user.email],
-          subscription: {
-            expire: 111,
-            status: false
-          }
-        }
-      })
+      // let job = new Jobs({
+      //   userID: user.id,
+      //   settings: {
+      //     emails: [user.email],
+      //     subscription: {
+      //       expire: 111,
+      //       status: false
+      //     }
+      //   }
+      // })
 
       await profile.save()
-      await job.save()
+      // await job.save()
 
       const payload = {
         user: {
@@ -105,9 +104,19 @@ router.post('/place', (req, res) => {
     .then(result => {
 
      if(result.data.status == 'OK') {
-       let autoData = result.data.predictions.map(prediction => {
-         return prediction.description
-       })
+        let autoData = result.data.predictions.map(prediction => {
+          return prediction.description
+        })
+
+        let work = "Work from home"
+        let freelance = 'Freelance'
+        let remote = 'Remote'
+
+        work.search(new RegExp(req.body.data,'i')) !== -1 ? autoData.unshift(work) : ''
+        freelance.search(new RegExp(req.body.data,'i')) !== -1 ? autoData.unshift(freelance) : ''
+        remote.search(new RegExp(req.body.data,'i')) !== -1 ? autoData.unshift(remote) : ''
+
+       console.log("auto data: ",autoData)
    
        res.json(autoData)
      }
@@ -118,27 +127,27 @@ router.post('/place', (req, res) => {
     })
 })
 
-router.post('/set-subscribe', auth, async (req, res) => {
+// router.post('/set-subscribe', auth, async (req, res) => {
 
   
-  try {
-    let result = await Jobs.findOne({ userID: req.user.id })
-    console.log("RESULT: ", result)
+//   try {
+//     let result = await Jobs.findOne({ userID: req.user.id })
+//     console.log("RESULT: ", result)
 
-    if (!result) {
-      console.log("ERR: ", result)
-      throw new Error({'msg':'NO USER FOUND'}); 
+//     if (!result) {
+//       console.log("ERR: ", result)
+//       throw new Error({'msg':'NO USER FOUND'}); 
 
-    }
+//     }
 
-    result.settings.subscription.status = !result.settings.subscription.status
-    await result.save()
-    console.log("result: ", result)
+//     result.settings.subscription.status = !result.settings.subscription.status
+//     await result.save()
+//     console.log("result: ", result)
 
-    res.status(200).json(result.settings.subscription)
-  } catch (error) {
-    console.log(error)
-  }
-})
+//     res.status(200).json(result.settings.subscription)
+//   } catch (error) {
+//     console.log(error)
+//   }
+// })
 
 module.exports = router;

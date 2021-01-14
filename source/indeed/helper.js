@@ -1,6 +1,8 @@
 const axios = require('axios')
 const cheerio = require('cheerio')
+const { v4: uuidv4 } = require('uuid')
 const placeKey = require('../../config/keys').placeKey
+// const nlp = require('compromise')
 
 const getHtml = async (link) => {
   let result = await axios.get(link)
@@ -8,6 +10,7 @@ const getHtml = async (link) => {
 }
 
 const nameParser = (data) => {
+  console.log("-=-=-helper: ",data)
   let val = data.split(" ")
 
   if (val.length == 1) {
@@ -40,7 +43,7 @@ const getLocation = async (loc) => {
     return val[val.length - 1]
 
   } catch (err) {
-    return 'uk'
+    return 'usa'
   }
 }
 
@@ -87,6 +90,8 @@ let getLinker = async (data) => {
 const getSingleJob = async (jobs, link) => {
   let index = Math.floor(Math.random() * jobs.length)
 
+  console.log("link: ",link, "job link: ", jobs[index].link)
+
   let html2 = await getHtml(link + jobs[index].link)
 
     console.log(`link ${index} is on process`)
@@ -96,16 +101,35 @@ const getSingleJob = async (jobs, link) => {
     const imageCont = $('.icl-Card-body')
 
     let job_type = heading.find('.icl-IconFunctional--md.icl-IconFunctional--jobs').next().text().replace(/\s\s+/g, '')
-    let reviews = heading.find('.icl-Ratings-count').text().split(" ")[0] || Math.floor(Math.random() * 150)
+    // let reviews = heading.find('.icl-Ratings-count').text().split(" ")[0] || Math.floor(Math.random() * 150)
     let applyLink = heading.find('.icl-u-lg-hide .icl-Button--primary').attr('href') || link + jobs[index].link
     let compantImg = imageCont.find('.jobsearch-CompanyAvatar-image').attr('src') || ''
+    let more_description = $('#jobDescriptionText').text().trim().replace(/\n/g, ' <br /> ')
+    let recruiter_email = more_description.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi)
+    let recruiter_number = more_description.match(/^[+]*[(]{0,1}[0-9]{1,4}[)]{0,1}[-\s\./0-9]*$/gi)
+    
+    // let recruiter_name
+    // if(nlp(more_description).people().json().length === 0) {
+    //   recruiter_name = ''
+    // } else {
+    //   recruiter_name = nlp(more_description).people().json()[0].text
+    // }
 
-    jobs[index].review = reviews
+    let recruiter = { 
+      email: recruiter_email ? recruiter_email[0] : '' ,
+      phone: recruiter_number ? recruiter_number[0] : '',
+      // name: recruiter_name
+    }
+
+    // jobs[index].review = reviews
     jobs[index].apply = applyLink
-    jobs[index].type = job_type
+    jobs[index].job_type = job_type
     jobs[index].img = compantImg 
-    jobs[index].ratingLink = jobs[index].ratingLink ? link + jobs[index].ratingLink : false
-    jobs[index].id = index
+    // jobs[index].ratingLink = jobs[index].ratingLink ? link + jobs[index].ratingLink : false
+    jobs[index].id = uuidv4()
+    jobs[index].more_description = more_description
+    jobs[index].recruiter = recruiter
+    jobs[index].notes = ''
 
     return jobs[index]
 }

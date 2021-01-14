@@ -6,6 +6,8 @@ const { indeedLink, getHtml, nameParser, getSingleJob } = require('./helper')
 const indeedNotify = ({ title, location, page }, getc) => {
     return new Promise(async (resolve, reject) => {
 
+      location = location || 'any where'
+
        let titlep = nameParser(title)
        location = nameParser(location)
 
@@ -26,9 +28,9 @@ const indeedNotify = ({ title, location, page }, getc) => {
        let html = await getHtml(ctLink)
        const ScrapedData = await scraper(html)
 
-       let matchedJob = ScrapedData.job_list.filter(element => {
-           return element.title.toLowerCase().indexOf(title.toLowerCase()) != -1
-       })
+        let matchedJob = ScrapedData.job_list.filter(element => {
+          return element.title.toLowerCase().indexOf(title.toLowerCase()) != -1
+        })
 
       if (matchedJob.length == 0 || getc) {
            

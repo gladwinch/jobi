@@ -4,7 +4,7 @@ const secretOrKey = require('../config/keys').secretOrKey
 module.exports = function(req, res, next) {
   // Get token from header
  
-  const token = req.header('x-auth-token')
+  const token = req.header('x-auth-token-cyber')
   // Check if not token
   if (!token) {
     return res.status(401).json({ msg: 'authorization denied' })
@@ -16,8 +16,8 @@ module.exports = function(req, res, next) {
       if (error) {
         res.status(401).json({ msg: 'Token is not valid' });
       } else {
-        req.user = decoded.user
-        next();
+        req.candidate = decoded
+        next()
       }
     })
   } catch (err) {

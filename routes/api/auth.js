@@ -1,161 +1,50 @@
 const express = require('express')
-const router = express.Router()
-const bcrypt = require('bcryptjs')
-const auth = require('../../middleware/auth')
-const jwt = require('jsonwebtoken')
-const secretOrKey = require('../../config/keys').secretOrKey
 const { check, validationResult } = require('express-validator')
+const bcrypt = require('bcryptjs')
 const passport = require('passport')
-const authService = require('../../services/AuthService')
 
-const User = require('../../models/User')
+const Candidate = require('../../models/Candidate')
+const validUser = require('../../validation/validUser')
+const { signToken } = require('../../services/AuthService')
+const router = express.Router()
 
+// @route    POST api/auth/social
+// @desc     Social network authentication
+// @access   Public
+router.post('/social', async (req, res) => {
 
-// @route    GET api/auth
-// @desc     Get user by token
-// @access   Private
-router.get('/', auth, async (req, res) => {
+  if(Object.keys(validUser(req.body)).length !== 0) {
+    res.status(404).json({
+      success: false,
+      data: validUser(req.body),
+      message: 'Data is not valid'
+    })
+  }
+
   try {
-    const user = await User.findById(req.user.id).select('-password')
+    const { email, name, avatar } = req.body
 
-    res.json(user)
+    let candidate = await Candidate.findOne({ email })
+
+    if (candidate) {
+      return sendTokenResponse(candidate, 200, res)
+    }
+    
+    candidate = await Candidate.create({ 
+      name, email, 
+      avatar: { url: avatar, name: '' }, 
+      job_alert: { email, searchs: [] } 
+    })
+
+    sendTokenResponse(candidate, 200, res)
   } catch (err) {
     console.error(err.message)
-    res.status(500).send('Server Error')
+    res.status(500).send('Server error')
   }
 })
 
-// @route    POST api/auth
-// @desc     Authenticate user & get token (login)
-// @access   Public
-router.post(
-  '/',
-  [
-    check('email', 'Please include a valid email').isEmail(),
-    check('password', 'Password is required').exists()
-  ],
-  async (req, res) => {
-    const errors = validationResult(req)
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() })
-    }
-    
-
-    const { email, password } = req.body
-
-    try {
-      let user = await User.findOne({ email })
-
-      if (!user) {
-        return res
-          .status(400)
-          .json({ errors: [{ msg: 'Invalid Credentials' }] })
-      }
-
-      const isMatch = await bcrypt.compare(password, user.password)
-
-      if (!isMatch) {
-        return res
-          .status(400)
-          .json({ errors: [{ msg: 'Invalid Credentials' }] })
-      }
-
-      const payload = {
-        user: {
-          id: user.id
-        }
-      }
-
-      jwt.sign(
-        payload,
-        secretOrKey,
-        { expiresIn: 3600000 },
-        (err, token) => {
-          if (err) throw err
-          res.json({ token })
-        }
-      )
-    } catch (err) {
-      console.error(err.message)
-      res.status(500).json({
-        errors: [{
-          msg: 'Server Error'
-        }]
-      })
-    }
-  }
-)
-
-
-// Authentication Strateries 
-
-// @route    GET api/auth/google
-// @desc     Authenticate user with Google Auth & get token
-// @access   Public
-router.get('/google', 
-  passport.authenticate('google', {
-    session: false,
-    scope: ["profile", "email"],
-    accessType: "offline",
-    approvalPrompt: "force"
-  })
-)
-
-router.get('/google/callback', 
-  passport.authenticate('google', {
-    session: false,
-    failureRedirect: '/api/auth/failed'
-  }),
-  (req, res) => {
-    authService.signToken(req, res)
-  }
-)
-
-// @route    GET api/auth/google
-// @desc     Authenticate user with github Auth & get token
-// @access   Public
-router.get('/github',
-  passport.authenticate('github', {
-    session: false,
-    scope: ['user:email'],
-    accessType: "offline",
-    approvalPrompt: "force"
-  })
-)
-
-router.get('/github/callback',
-  passport.authenticate('github', {
-    session: false,
-    failureRedirect: '/api/auth/failed'
-  }),
-  (req, res) => {
-    authService.signToken(req, res)
-  }
-)
-
-// @route    GET api/auth/google
-// @desc     Authenticate user with Google Auth & get token
-// @access   Public
-router.get('/facebook',
-  passport.authenticate('facebook', {
-    session: false,
-    scope : ['email'] 
-  })
-)
-
-router.get('/facebook/callback',
-  passport.authenticate('facebook', {
-    session: false,
-    failureRedirect: '/api/auth/failed'
-  }),
-  (req, res) => {
-    authService.signToken(req, res)
-  }
-)
-
-
-// @route    GET api/auth/google
-// @desc     Authenticate user with Google Auth & get token
+// @route    GET api/auth/linkedin
+// @desc     Authenticate user with linkedin Auth & get token
 // @access   Public
 router.get('/linkedin',
   passport.authenticate('linkedin', {
@@ -168,14 +57,116 @@ router.get('/linkedin/callback',
     session: false,
     failureRedirect: '/api/auth/failed'
   }),
-  (req, res) => {
-    authService.signToken(req, res)
-  }
+  (req, res) => signToken(req, res)
 )
 
-//Failed route
-router.get('/failed', (req, res) => {
-  res.send("You are failed to Login")
-})
+// @route    POST api/auth/register
+// @desc     Register candidate and generate token
+// @access   Public
+router.post(
+    '/register',
+    [
+        check('name', 'Name is required')
+          .not()
+          .isEmpty(),
+        check('email', 'Please include a valid email').isEmail(),
+        check(
+          'password',
+          'Please enter a password with 6 or more characters'
+        ).isLength({ min: 5 })
+    ],
+    async (req,res) => {
+
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+    
+        const { name, email, password } = req.body
+    
+        try {
+            let candidate = await Candidate.findOne({ email })
+        
+            if (candidate) {
+              return res
+              .status(400)
+              .json({ errors: [{ msg: 'User already exists' }] })
+            }
+            
+            candidate = await Candidate.create({ name, email, password, job_alert: { email } })
+            sendTokenResponse(candidate, 200, res)
+        } catch (err) {
+            console.error(err)
+            res.status(500).send('Server error')
+        } 
+    }
+)
+
+// @route    POST api/auth/login
+// @desc     Login candidate and generate token
+// @access   Public
+router.post(
+    '/login',
+    [
+        check('email', 'Email is required')
+          .not()
+          .isEmpty(),
+        check(
+          'password',
+          'Password is required'
+        )
+    ],
+    async (req,res) => {
+        console.log("route is working...", req.body)
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+    
+        const { email, password } = req.body
+    
+        try {
+            let candidate = await Candidate.findOne({ email }).select('+password')
+            console.log("candidate: ",candidate)
+        
+            if (!candidate) {
+                return res
+                .status(400)
+                .json({ errors: [{ msg: 'Invalid Credentials' }] })
+            }
+
+            const isMatch = await bcrypt.compare(password, candidate.password)
+
+            if (!isMatch) {
+                return res
+                  .status(400)
+                  .json({ errors: [{ msg: 'Invalid Credentials' }] })
+            }
+
+            sendTokenResponse(candidate, 200, res)
+        } catch (err) {
+            console.error(err.message)
+            res.status(500).send('Server error')
+        } 
+    }
+)
+
+// Get token from model, create cookie and send response
+const sendTokenResponse = (user, statusCode, res) => {
+    // Create token
+    const token = user.getSignedJwtToken()
+  
+    const options = {
+      expires: new Date(
+        Date.now() + 30 * 24 * 60 * 60 * 1000
+      ),
+      httpOnly: true
+    }
+  
+    res
+      .status(statusCode)
+      .cookie('token', token, options)
+      .json({ token })
+}
 
 module.exports = router
