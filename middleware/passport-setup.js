@@ -21,7 +21,7 @@ module.exports = passport => {
   passport.use(new LinkedInStrategy({
     clientID: require('../config/keys').Linkedin_Id,
     clientSecret: require('../config/keys').Linkedin_secret,
-    callbackURL: "http://localhost:5000/api/auth/linkedin/callback",
+    callbackURL: "https://jobi.ie/api/auth/linkedin/callback",
     scope: ["r_liteprofile", "r_emailaddress"],
   }, function (accessToken, refreshToken, profile, done) {
 
