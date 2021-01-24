@@ -18,7 +18,7 @@ exports.signToken = (req, res) => {
             console.log("successful login now redirecting...")
             res
                 .status(200)
-                .redirect(`/redirect/${token}`)
+                .redirect(`https://thawing-savannah-77482.herokuapp.com/redirect/${token}`)
         }
     )
 }

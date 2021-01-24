@@ -49,6 +49,7 @@ router.post('/social', async (req, res) => {
 router.get('/linkedin',
   passport.authenticate('linkedin', {
     session: false,
+    scope: ["r_liteprofile", "r_emailaddress"]
   })
 )
 
