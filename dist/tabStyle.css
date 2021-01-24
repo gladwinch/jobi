@@ -1,0 +1,19 @@
+.v-tabs-slider-wrapper {
+    width: 100% !important;
+    height: 100%;
+    transform: translateY(-6.5px);
+    position: relative;
+    right: 38px;
+    transition: 0;
+}
+
+.v-tabs-slider {
+    position: absolute;
+    right: 0;
+    width: 4.5px !important;
+    height: 3rem !important;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 0px;
+    border-bottom-left-radius: 8px;
+    transition: 0;
+}
