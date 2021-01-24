@@ -21,7 +21,7 @@ module.exports = passport => {
   passport.use(new LinkedInStrategy({
     clientID: require('../config/keys').Linkedin_Id,
     clientSecret: require('../config/keys').Linkedin_secret,
-    callbackURL: "https://thawing-savannah-77482.herokuapp.com/api/auth/linkedin/callback",
+    callbackURL: "/api/auth/linkedin/callback",
     scope: ["r_liteprofile", "r_emailaddress"],
   }, function (accessToken, refreshToken, profile, done) {
 
