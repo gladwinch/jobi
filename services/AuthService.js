@@ -18,7 +18,7 @@ exports.signToken = (req, res) => {
             console.log("successful login now redirecting...")
             res
                 .status(200)
-                .redirect(`https://jobi.ie/redirect/${token}`)
+                .redirect(`/redirect/${token}`)
         }
     )
 }
