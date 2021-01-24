@@ -5,8 +5,13 @@ const placeKey = require('../../config/keys').placeKey
 // const nlp = require('compromise')
 
 const getHtml = async (link) => {
-  let result = await axios.get(link)
-  return result.data
+  try {
+    let result = await axios.get(link)
+    return result.data
+  } catch (err) {
+    console.log('request error -----------------------------------------')
+    console.log(err)
+  }
 }
 
 const nameParser = (data) => {
