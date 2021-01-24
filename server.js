@@ -39,12 +39,12 @@ app.use('/api/payment', require('./routes/api/payment'))
 // Serve static assets in production
 if (true) {
   // Set static folder
-  app.use(express.static('dist'))
+  app.use(express.static('./dist'))
 
   app.get('*', (req, res) => {
     res.sendFile(path.resolve(__dirname, 'dist', 'index.html'))
   })
-  
+
 }
 
 
