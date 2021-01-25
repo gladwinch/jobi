@@ -7,6 +7,7 @@ const placeKey = require('../../config/keys').placeKey
 const getHtml = async (link) => {
   try {
     let result = await axios.get(link)
+    console.log("html: ------: ",result.data)
     return result.data
   } catch (err) {
     console.log('request error -----------------------------------------')
